@@ -1,0 +1,12 @@
+This extension includes WPPConnect/WA-JS 4.6.1, licensed under Apache-2.0.
+Copyright 2021-2026 WPPConnect Team. Upstream: https://github.com/wppconnect-team/wa-js
+
+The bundled browser distribution was modified for wa-scheduler:
+- Its export is retained in a private closure rather than assigned to self.WPP.
+- Its configuration is private rather than read from or written to window.WPPConfig.
+- Google Analytics, optional status synchronization and device naming are disabled
+  before initialization. External link-preview services are not configured.
+- file-type's Node-only stream helper is disabled instead of evaluating require.
+
+The original Apache license and upstream third-party notices are included in
+WA-JS-LICENSE.txt and WA-JS-THIRD-PARTY-LICENSES.txt.
