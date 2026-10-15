@@ -70,6 +70,7 @@ describe('respostas recebidas pelo painel', () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain('Recarregue');
     expect(container.textContent).toContain('Texto preservado');
     expect((container.querySelector('input[role="switch"]') as HTMLInputElement).checked).toBe(false);
+    expect((container.querySelector('input[role="switch"]') as HTMLInputElement).disabled).toBe(true);
   });
   it('preserva a opção ativada em uma resposta atual', async () => {
     respond.mockResolvedValue({ ok: true, database: { ...legacy(), settings: { autoDeleteFinished: true } } });

@@ -2,7 +2,7 @@
 
 Extensão Chrome Manifest V3 feita com TypeScript, WXT, React e CSS Modules. O painel fica na própria conversa, ao lado do microfone/botão de enviar. O ícone na barra do Chrome abre o WhatsApp com o painel; não há popup separado.
 
-Versão atual: **0.1.5**. Build instalável: `.output/chrome-mv3`. Pacote: `.output/wa-scheduler-0.1.5-chrome.zip`.
+Versão atual: **0.1.6**. Build instalável: `.output/chrome-mv3`. Pacote: `.output/wa-scheduler-0.1.6-chrome.zip`.
 
 ## Stack
 
@@ -123,6 +123,8 @@ npm run test:e2e
 6. A integração aguarda confirmação por até 15 segundos. O resultado vai para o histórico; envios incertos ou inseguros pausam o agendamento. O worker tem também um timeout de despacho de 25 segundos.
 
 Mensagens do content script aceitas pelo worker precisam vir desta extensão e do WhatsApp. Operações MAIN usam o frame principal e retornam apenas destinatário/resultado validados, não o modelo completo do chat. A biblioteca fica em um escopo privado; a API da página pertence ao mundo MAIN compartilhado com o site, não representa uma barreira contra o próprio JavaScript do WhatsApp.
+
+O painel também valida as respostas do worker antes de atualizar seu estado, tanto em snapshots quanto em alterações. Respostas antigas sem `settings` recebem a configuração padrão desativada, sem apagar agendamentos ou histórico. Respostas incompatíveis geram um aviso para recarregar e preservam o último estado válido, em vez de causar uma exceção na renderização.
 
 ### Armazenamento e estados
 

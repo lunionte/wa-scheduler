@@ -76,7 +76,12 @@ export default function Panel({ recipient, identifying, refreshRecipient, onClos
           return typeof backup.text === 'string' && typeof backup.savedAt === 'number' && parsedRecipient.success
             ? [{ key, text: backup.text, savedAt: backup.savedAt, recipient: parsedRecipient.data }] : [];
         }));
-      } catch { if (alive) setError('A extensão foi atualizada ou está indisponível. Recarregue o WhatsApp Web.'); }
+      } catch {
+        if (alive) {
+          setDatabaseLoaded(false);
+          setError('A extensão está indisponível ou enviou dados incompatíveis. Recarregue a extensão e o WhatsApp Web.');
+        }
+      }
     };
     void load();
     const listener = (_changes: Record<string, chrome.storage.StorageChange>, area: string) => {
