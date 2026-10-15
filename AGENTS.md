@@ -16,7 +16,11 @@ os comandos e as limitações. Estas regras se aplicam a todo o repositório.
   incerto. Registrar intenção antes de enviar; recuperação deve pausar ocorrências
   interrompidas. Nunca tentar uma segunda aba depois de despachar na primeira.
 - Somente o SchedulerEngine, acionado pelo worker, escreve waSchedulerDatabase.
-  Preferências da UI usam chaves separadas e não alteram agendamentos.
+  Preferências puramente visuais usam chaves separadas e não alteram agendamentos.
+  A política autoDeleteFinished é uma regra de domínio armazenada em settings no
+  banco e atualizada pela fila serial do engine; deve vir desativada e preservar
+  histórico, ativos, pausados e envios incertos. Nunca escrever essa política ou
+  excluir agendamentos diretamente pelo content script.
 - A consulta WA_SCHEDULER_ACTIVE fica fora da fila do engine: um tick espera o
   probe da aba, que depende dessa consulta. Enfileirá-la causaria deadlock.
 
@@ -49,6 +53,10 @@ os comandos e as limitações. Estas regras se aplicam a todo o repositório.
   abrir a seção marca os registros presentes como lidos. Marcadores são separados
   do banco, persistem localmente e são removidos quando saem do histórico retido.
 - Preserve foco, Escape, navegação por Tab, labels e controles acessíveis.
+- Alterações do cabeçalho são apenas sinais para revalidar o ID via SDK, não prova
+  de troca de conversa. Não fechar/apagar o formulário por uma resposta nula
+  temporária; desabilitar salvar até identificar novamente. Reanexar o host
+  removido pelo site sem criar outra raiz React nem duplicar listeners.
 
 ## Verificação e entrega
 

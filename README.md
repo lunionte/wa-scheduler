@@ -2,7 +2,7 @@
 
 Extensão Chrome Manifest V3 feita com TypeScript, WXT, React e CSS Modules. O painel fica na própria conversa, ao lado do microfone/botão de enviar. O ícone na barra do Chrome abre o WhatsApp com o painel; não há popup separado.
 
-Versão atual: **0.1.3**. Build instalável: `.output/chrome-mv3`. Pacote: `.output/wa-scheduler-0.1.3-chrome.zip`.
+Versão atual: **0.1.5**. Build instalável: `.output/chrome-mv3`. Pacote: `.output/wa-scheduler-0.1.5-chrome.zip`.
 
 ## Stack
 
@@ -20,9 +20,11 @@ Versão atual: **0.1.3**. Build instalável: `.output/chrome-mv3`. Pacote: `.out
 ## Painel e histórico
 
 - Clique no relógio ao lado do microfone para abrir ou fechar o painel.
+- Recriações do cabeçalho do WhatsApp e falhas temporárias de identificação preservam o painel e o formulário; durante a falha, salvar fica indisponível. Uma troca confirmada do ID da conversa fecha o painel e descarta o formulário anterior. Se o site remover o host do painel, a extensão recoloca a mesma árvore React no documento, sem montar uma segunda instância.
 - Arraste o cabeçalho para posicioná-lo na tela. O painel fica dentro da janela e mantém a posição durante atualizações da conversa. Fechar e abrir novamente restaura a posição padrão junto ao relógio; a posição não é salva.
 - Com o controle **Mover painel** selecionado por Tab, as setas também movem o painel. Escape fecha e devolve o foco ao relógio.
 - Nos agendamentos, **Editar** é azul, **Pausar** amarelo, **Continuar** verde e **Excluir** vermelho, incluindo a confirmação de exclusão. Continuar reinicia o intervalo.
+- Em Agendamentos, **Excluir finalizados automaticamente** vem desativado em instalações novas e na atualização de bancos antigos. É uma configuração persistente para todas as conversas do perfil. Ao ativar, exclui também os agendamentos já finalizados; depois remove os novos finalizados automaticamente, preservando o histórico. Não exclui mensagens do WhatsApp nem agendamentos ativos/pausados. Envios incertos permanecem pausados para conferência. Desativar não restaura agendamentos já excluídos.
 - **Histórico (N)** conta novos resultados ainda não lidos na conversa selecionada, incluindo envios confirmados e ocorrências não enviadas. O número desaparece quando não há novidades.
 - Abrir Histórico marca os registros presentes como lidos. Resultados que chegam enquanto essa seção está aberta também são marcados. A leitura persiste ao fechar/reabrir e recarregar a página, e é compartilhada pelas abas do mesmo perfil.
 - Registros anteriores à introdução desse contador aparecem como novos até serem lidos pela primeira vez.
@@ -113,7 +115,7 @@ npm run test:e2e
 
 ### Fluxo e contratos
 
-1. O painel usa `WA_SCHEDULER_SNAPSHOT`, `SAVE`, `PAUSE` e `DELETE` (todos com prefixo `WA_SCHEDULER_`). O worker valida a mensagem e o remetente, e delega ao engine.
+1. O painel usa `WA_SCHEDULER_SNAPSHOT`, `SAVE`, `PAUSE`, `DELETE` e `SETTINGS` (todos com prefixo `WA_SCHEDULER_`). O worker valida a mensagem e o remetente, e delega ao engine. `SETTINGS` atualiza a política de exclusão na mesma fila serial das operações do banco.
 2. O engine calcula o próximo horário, persiste o banco e cria um alarme pontual. Ao iniciar uma nova instância do worker, reconstrói o alarme a partir do armazenamento.
 3. No horário, o engine registra `inFlight` antes do despacho. O worker consulta abas do WhatsApp não descartadas, prioriza a ativa e pede `WA_SCHEDULER_PROBE`.
 4. A aba consulta `WA_SCHEDULER_ACTIVE` no worker, que executa a leitura no mundo MAIN. Essa consulta fica **fora da fila do engine**, pois o tick aguarda o probe e não pode bloquear a consulta da qual depende.
@@ -126,11 +128,11 @@ Mensagens do content script aceitas pelo worker precisam vir desta extensão e d
 
 | Chave | Conteúdo e escritor |
 | --- | --- |
-| `waSchedulerDatabase` | Banco versão 1: `schedules`, `history` e `inFlight`. Escrito exclusivamente pelo engine no worker |
+| `waSchedulerDatabase` | Banco versão 1: `settings`, `schedules`, `history` e `inFlight`. Escrito exclusivamente pelo engine no worker. `settings.autoDeleteFinished` tem padrão `false`, inclusive quando o campo não existe num banco antigo |
 | `waSchedulerHistoryRead:<occurrenceId>` | Booleano `true` indicando leitura. Escrito pelo painel; um marcador por ocorrência evita sobrescritas entre abas. Worker limpa os marcadores de registros que saíram do histórico retido |
 | `waSchedulerDraft:<occurrenceId>` | Backups legados de texto, destinatário e data. O painel permite recuperar/excluir; o envio atual não cria backups |
 
-Agendamentos têm estados `active`, `paused` e `finished`; resultados têm `sent`, `missed`, `failed` e `uncertain`. O banco retém 200 resultados no perfil, filtrados por ID da conversa na UI. Excluir um agendamento não apaga os resultados já registrados. Dados incompatíveis são preservados e sinalizados, sem reset silencioso.
+Agendamentos têm estados `active`, `paused` e `finished`; resultados têm `sent`, `missed`, `failed` e `uncertain`. O banco retém 200 resultados no perfil, filtrados por ID da conversa na UI. Excluir um agendamento não apaga os resultados já registrados. A exclusão automática filtra somente `finished` durante o commit do engine, depois de registrar o resultado. Uma ocorrência perdida ou uma falha de envio único pode finalizar o agendamento; envio incerto/inseguro o pausa e o mantém. Dados incompatíveis são preservados e sinalizados, sem reset silencioso.
 
 Datas são interpretadas no fuso local na criação e persistidas como timestamps. Intervalos são persistidos em minutos e calculados a partir de uma âncora, preservando a cadência após ocorrências perdidas. O horário aleatório é escolhido uma vez ao salvar; editar e salvar a janela pode escolher um novo horário.
 
