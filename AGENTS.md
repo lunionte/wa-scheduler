@@ -28,6 +28,10 @@ os comandos e as limitações. Estas regras se aplicam a todo o repositório.
 
 - Separe core (regras), integration (SDK), content (DOM) e ui (apresentação).
   Evite any; valide dados de armazenamento e mensagens nas fronteiras com Zod.
+- O painel deve validar as respostas do worker antes de atualizar seu estado,
+  incluindo respostas a alterações. Não confiar apenas no tipo TypeScript ou na
+  validação do worker: respostas antigas sem settings devem receber os padrões
+  do esquema; respostas incompatíveis não devem substituir o último banco válido.
 - Mantenha a versão de WA-JS fixa. O build adapta a distribuição com substituições
   verificadas; não suprima os erros dessas verificações ao atualizar a biblioteca.
 - Preserve WPP/WPPConfig de terceiros, configuração privada, analytics desligado
