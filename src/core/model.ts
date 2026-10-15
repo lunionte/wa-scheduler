@@ -41,6 +41,7 @@ export const occurrenceSchema = z.object({
 });
 export const databaseSchema = z.object({
   version: z.literal(1),
+  settings: z.object({ autoDeleteFinished: z.boolean() }).default({ autoDeleteFinished: false }),
   schedules: z.array(scheduleSchema),
   history: z.array(occurrenceSchema),
   inFlight: z.object({
@@ -57,6 +58,6 @@ export type Schedule = z.infer<typeof scheduleSchema>;
 export type SendResult = z.infer<typeof resultSchema>;
 export type Occurrence = z.infer<typeof occurrenceSchema>;
 export type Database = z.infer<typeof databaseSchema>;
-export const emptyDatabase = (): Database => ({ version: 1, schedules: [], history: [], inFlight: null });
+export const emptyDatabase = (): Database => ({ version: 1, settings: { autoDeleteFinished: false }, schedules: [], history: [], inFlight: null });
 export const MAX_LATENESS_MS = 60_000;
 export const HISTORY_LIMIT = 200;

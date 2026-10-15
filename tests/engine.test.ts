@@ -118,4 +118,60 @@ describe('motor persistente', () => {
     await expect(other.recover()).rejects.toThrow('Dados locais incompatíveis');
     expect(persist).not.toHaveBeenCalled();
   });
+  it('migra bancos antigos com exclusão desativada e mantém os finalizados', async () => {
+    await engine.save(input({ kind: 'once', at: 160000 })); now = 160000;
+    await engine.tick();
+    const { settings: _settings, ...legacy } = structuredClone(db);
+    const migrated = new SchedulerEngine({ load: async () => legacy, persist: async value => { db = value; }, arm, send, now: () => now, uuid: () => '' });
+    await migrated.recover();
+    expect(db.settings.autoDeleteFinished).toBe(false);
+    expect(db.schedules[0]?.state).toBe('finished');
+  });
+  it('ao ativar remove finalizados de todas as conversas sem apagar histórico ou pausados', async () => {
+    await engine.save(input({ kind: 'once', at: 160000 }));
+    await engine.save({ ...input({ kind: 'once', at: 160000 }), recipient: { phone: '5511888888888', label: 'Outro' } });
+    await engine.save(input({ kind: 'interval', minutes: 2 }));
+    const recurring = db.schedules[2]!.id;
+    await engine.pause(recurring, true); now = 160000; await engine.tick();
+    const history = structuredClone(db.history);
+    expect(db.schedules.filter(s => s.state === 'finished')).toHaveLength(2);
+    await engine.setAutoDeleteFinished(true);
+    expect(db.schedules).toHaveLength(1); expect(db.schedules[0]?.state).toBe('paused');
+    expect(db.history).toEqual(history); expect(db.settings.autoDeleteFinished).toBe(true);
+    await createEngine().recover();
+    expect(db.settings.autoDeleteFinished).toBe(true);
+  });
+  it.each(['sent', 'missed', 'failed'] as const)('exclui envio único finalizado com resultado %s, mantendo o resultado', async status => {
+    await engine.setAutoDeleteFinished(true);
+    send.mockResolvedValue({ status, reason: 'teste' });
+    await engine.save(input({ kind: 'once', at: 160000 })); now = 160000;
+    await engine.tick(); await engine.tick();
+    expect(db.schedules).toHaveLength(0); expect(db.history[0]?.result.status).toBe(status);
+    expect(db.history).toHaveLength(1); expect(send).toHaveBeenCalledTimes(1);
+  });
+  it('não remove envios incertos e recorrências ativas', async () => {
+    await engine.setAutoDeleteFinished(true);
+    send.mockResolvedValueOnce({ status: 'uncertain', reason: 'sem confirmação', unsafe: true });
+    await engine.save(input({ kind: 'once', at: 160000 }));
+    await engine.save(input({ kind: 'interval', minutes: 1 })); now = 160000; await engine.tick();
+    expect(db.schedules.map(s => s.state)).toEqual(['paused', 'active']);
+    expect(db.history).toHaveLength(2);
+  });
+  it('ao desativar mantém novos finalizados sem restaurar os excluídos', async () => {
+    await engine.setAutoDeleteFinished(true);
+    await engine.save(input({ kind: 'once', at: 160000 })); now = 160000; await engine.tick();
+    await engine.setAutoDeleteFinished(false);
+    await engine.save(input({ kind: 'once', at: 200000 })); now = 200000; await engine.tick();
+    expect(db.schedules).toHaveLength(1); expect(db.schedules[0]?.state).toBe('finished');
+    expect(db.history).toHaveLength(2); expect(db.settings.autoDeleteFinished).toBe(false);
+  });
+  it('recupera envio interrompido como pausado mesmo com exclusão ativada', async () => {
+    await engine.setAutoDeleteFinished(true);
+    await engine.save(input({ kind: 'once', at: 160000 }));
+    const schedule = db.schedules[0]!;
+    db.inFlight = { id: `${schedule.id}:160000`, scheduleId: schedule.id, scheduledAt: 160000, recipient };
+    await createEngine().recover();
+    expect(db.schedules[0]?.state).toBe('paused'); expect(db.history[0]?.result.status).toBe('uncertain');
+    expect(send).not.toHaveBeenCalled();
+  });
 });

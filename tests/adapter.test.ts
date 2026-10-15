@@ -60,4 +60,21 @@ describe('adaptador da interface', () => {
     document.querySelector('footer')!.insertAdjacentHTML('beforeend', '<div data-testid="compose-quoted-message"></div>');
     expect(adapter.unsupportedDraft()).toBe(true);
   });
+  it('uma consulta antiga não libera nem substitui a verificação forçada mais recente', async () => {
+    let first!: (value: unknown) => void;
+    let second!: (value: unknown) => void;
+    const sendMessage = vi.fn()
+      .mockImplementationOnce(() => new Promise(resolve => { first = resolve; }))
+      .mockImplementationOnce(() => new Promise(resolve => { second = resolve; }));
+    vi.stubGlobal('chrome', { runtime: { sendMessage } });
+    const previous = adapter.resolveRecipient();
+    const fresh = adapter.resolveRecipient(true);
+    first({ ready: true, recipient: { phone: '5511999999999', label: 'Anterior' } });
+    await previous;
+    const shared = adapter.resolveRecipient();
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    second({ ready: true, recipient: { phone: '5511888888888', label: 'Atual' } });
+    expect((await fresh)?.phone).toBe('5511888888888');
+    expect(await shared).toEqual(await fresh);
+  });
 });

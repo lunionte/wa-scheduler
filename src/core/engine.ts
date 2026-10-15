@@ -30,6 +30,9 @@ export class SchedulerEngine {
   }
 
   private async commit(db: Database): Promise<void> {
+    if (db.settings.autoDeleteFinished) {
+      db.schedules = db.schedules.filter(schedule => schedule.state !== 'finished' || schedule.id === db.inFlight?.scheduleId);
+    }
     db.history = db.history.slice(-HISTORY_LIMIT);
     await this.deps.persist(db);
     const times = db.schedules.filter(s => s.state === 'active' && s.nextAt !== null).map(s => s.nextAt!);
@@ -37,6 +40,15 @@ export class SchedulerEngine {
   }
 
   snapshot(): Promise<Database> { return this.serial(() => this.read()); }
+
+  setAutoDeleteFinished(enabled: boolean): Promise<Database> {
+    return this.serial(async () => {
+      const db = await this.read();
+      db.settings.autoDeleteFinished = enabled;
+      await this.commit(db);
+      return db;
+    });
+  }
 
   recover(): Promise<void> {
     return this.serial(async () => {

@@ -427,3 +427,91 @@ test('cores das ações e histórico com contador persistente por conversa e lei
   });
   await expect.poll(() => worker.evaluate(async () => Object.keys(await chrome.storage.local.get(null)).filter(key => key.startsWith('waSchedulerHistoryRead:')).length)).toBe(0);
 });
+
+test('exclusão automática vem desativada, persiste e limpa finalizados sem apagar histórico', async () => {
+  await createRecurring();
+  const toggle = page.getByRole('switch', { name: /Excluir finalizados automaticamente/ });
+  await expect(toggle).not.toBeChecked();
+  await worker.evaluate(async () => {
+    const db = (await chrome.storage.local.get('waSchedulerDatabase')).waSchedulerDatabase as Database;
+    const original = db.schedules[0]!;
+    for (let index = 0; index < 2; index++) {
+      const recipient = index ? { phone: '5511888888888', label: 'Outro' } : original.recipient;
+      const id = crypto.randomUUID();
+      db.schedules.push({ ...original, id, recipient, timing: { kind: 'once', at: Date.now() - 1000 }, nextAt: null, state: 'finished' });
+      db.history.push({ id: `${id}:old`, scheduleId: id, recipient, scheduledAt: Date.now() - 1000,
+        completedAt: Date.now(), result: { status: 'sent', reason: 'Enviado anteriormente' } });
+    }
+    await chrome.storage.local.set({ waSchedulerDatabase: db });
+  });
+  await expect(page.getByRole('button', { name: 'Agendamentos (2)', exact: true })).toBeVisible();
+  await expect(page.getByText('Finalizado', { exact: true })).toBeVisible();
+  await toggle.check(); await expect(toggle).toBeChecked();
+  await expect(page.getByRole('button', { name: 'Agendamentos (1)', exact: true })).toBeVisible();
+  const snapshot = await worker.evaluate(async () => (await chrome.storage.local.get('waSchedulerDatabase')).waSchedulerDatabase as Database);
+  expect(snapshot.schedules).toHaveLength(1); expect(snapshot.history).toHaveLength(2);
+  await page.screenshot({ path: 'artifacts/agendamentos-auto-delete-light.png' });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.screenshot({ path: 'artifacts/agendamentos-auto-delete-dark.png' });
+  await page.reload(); await openPanel();
+  await page.getByRole('button', { name: 'Agendamentos (1)', exact: true }).click();
+  await expect(toggle).toBeChecked();
+  await worker.evaluate(async () => {
+    const db = (await chrome.storage.local.get('waSchedulerDatabase')).waSchedulerDatabase as Database;
+    db.schedules[0]!.timing = { kind: 'once', at: Date.now() + 1000 };
+    await chrome.storage.local.set({ waSchedulerDatabase: db });
+  });
+  await makeDue();
+  await expect(page.getByText('Nenhum agendamento nesta conversa.')).toBeVisible();
+  await expect(toggle).toBeChecked();
+  await page.getByRole('button', { name: /^Histórico/ }).click();
+  await expect(page.getByText('Enviada', { exact: true })).toHaveCount(2);
+  await page.getByRole('button', { name: 'Agendamentos (0)', exact: true }).click();
+  await toggle.uncheck(); await expect(toggle).not.toBeChecked();
+  await page.reload(); await openPanel();
+  await page.getByRole('button', { name: 'Agendamentos (0)', exact: true }).click();
+  await expect(toggle).not.toBeChecked();
+});
+
+test('recriação do cabeçalho da mesma conversa preserva painel e formulário', async () => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await openPanel();
+  await page.getByLabel('Mensagem', { exact: true }).fill('Formulário preservado');
+  await page.evaluate(() => {
+    const header = document.querySelector('#main > header')!;
+    header.replaceWith(header.cloneNode(true));
+  });
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByLabel('Mensagem', { exact: true })).toHaveValue('Formulário preservado');
+  await page.getByRole('button', { name: 'Fechar agendador' }).click(); await openPanel();
+  expect(errors).toEqual([]);
+});
+
+test('recupera host removido sem perder o formulário e permite reabrir', async () => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await openPanel();
+  await page.getByLabel('Mensagem', { exact: true }).fill('Texto antes da remoção');
+  await page.evaluate(() => document.querySelector('wa-scheduler')!.remove());
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByLabel('Mensagem', { exact: true })).toHaveValue('Texto antes da remoção');
+  await page.getByRole('button', { name: 'Fechar agendador' }).click(); await openPanel();
+  expect(errors).toEqual([]);
+});
+
+test('identificação temporariamente indisponível bloqueia salvar sem fechar ou apagar o formulário', async () => {
+  await openPanel();
+  await page.getByLabel('Mensagem', { exact: true }).fill('Não perder durante reconexão');
+  await page.evaluate(() => {
+    const api = window.__waSchedulerPageV1!;
+    const original = api.identify;
+    api.identify = () => ({ ready: false, recipient: null });
+    window.setTimeout(() => { api.identify = original; }, 3000);
+  });
+  await expect(page.getByRole('button', { name: 'Agendar mensagem', exact: true }).last()).toBeDisabled();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByLabel('Mensagem', { exact: true })).toHaveValue('Não perder durante reconexão');
+  await expect(page.getByText('+5511999999999', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Agendar mensagem', exact: true }).last()).toBeEnabled();
+});

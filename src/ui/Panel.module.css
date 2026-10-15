@@ -56,6 +56,16 @@
 .error { color: var(--error); background: var(--error-bg); }
 .success { background: var(--accent-soft); }
 .list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.autoDelete { display: flex; position: relative; gap: 12px; align-items: center; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.autoDelete strong { display: block; font-size: 12px; font-weight: 500; }
+.autoDelete small { display: block; color: var(--muted); font-size: 11px; line-height: 1.5; margin-top: 5px; }
+.autoDelete input { position: absolute; right: 0; width: 42px !important; height: 24px !important; opacity: 0; }
+.switchTrack { flex: 0 0 42px; width: 42px; height: 24px; border-radius: 12px; background: var(--muted); padding: 3px; pointer-events: none; }
+.switchTrack::after { content: ''; display: block; width: 18px; height: 18px; border-radius: 50%; background: var(--surface); }
+.autoDelete input:checked + .switchTrack { background: var(--accent); }
+.autoDelete input:checked + .switchTrack::after { transform: translateX(18px); }
+.autoDelete input:focus-visible + .switchTrack { outline: 2px solid var(--accent); outline-offset: 3px; }
+.autoDelete input:disabled + .switchTrack { opacity: .5; }
 .card { background: var(--surface-alt); padding: 14px; border-radius: 10px; }
 .cardTitle { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .cardTitle strong { font-size: 13px; font-weight: 600; }

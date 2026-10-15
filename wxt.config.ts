@@ -7,7 +7,7 @@ export default defineConfig({
   manifest: {
     name: 'Agendador para WhatsApp Web',
     description: 'Agende mensagens na conversa aberta do WhatsApp Web.',
-    version: '0.1.3',
+    version: '0.1.5',
     minimum_chrome_version: '120',
     permissions: ['storage', 'alarms', 'scripting'],
     host_permissions: ['https://web.whatsapp.com/*'],

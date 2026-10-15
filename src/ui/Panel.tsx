@@ -34,6 +34,8 @@ export function ClockIcon({ size = 24 }: { size?: number }) {
 
 export default function Panel({ recipient, identifying, refreshRecipient, onClose, onDragStart, onDragMove, onDragEnd, onMove, request = requestDefault }: Props) {
   const [database, setDatabase] = useState<Database>(emptyDatabase);
+  const [databaseLoaded, setDatabaseLoaded] = useState(false);
+  const [autoDeleteChoice, setAutoDeleteChoice] = useState<boolean | null>(null);
   const [backups, setBackups] = useState<Backup[]>([]);
   const [tab, setTab] = useState<'form' | 'list' | 'history'>('form');
   const [message, setMessage] = useState('');
@@ -62,7 +64,7 @@ export default function Panel({ recipient, identifying, refreshRecipient, onClos
       try {
         const response = await request({ type: 'WA_SCHEDULER_SNAPSHOT' });
         if (!alive) return;
-        if (response.ok) setDatabase(response.database); else setError(response.error);
+        if (response.ok) { setDatabase(response.database); setDatabaseLoaded(true); } else setError(response.error);
         const stored = await chrome.storage.local.get(null);
         if (alive) setReadHistory(new Set(Object.entries(stored).flatMap(([key, value]) =>
           key.startsWith('waSchedulerHistoryRead:') && value === true ? [key.slice('waSchedulerHistoryRead:'.length)] : [])));
@@ -207,7 +209,18 @@ export default function Panel({ recipient, identifying, refreshRecipient, onClos
         </>}
         <button type="submit" className={styles.primary} disabled={pending || !recipient || identifying}>{pending ? 'Salvando…' : editing ? 'Salvar alterações' : 'Agendar mensagem'}</button>
       </form>}
-      {tab === 'list' && (schedules.length ? <ul className={styles.list}>{schedules.map(schedule => <li className={styles.card} key={schedule.id}>
+      {tab === 'list' && <>
+        <label className={styles.autoDelete}>
+          <span><strong>Excluir finalizados automaticamente</strong><small>Vale para todas as conversas. Ao ativar, remove também os já finalizados. O histórico é mantido.</small></span>
+          <input type="checkbox" role="switch" checked={autoDeleteChoice ?? database.settings.autoDeleteFinished} disabled={pending || !databaseLoaded}
+            onChange={event => {
+              const enabled = event.target.checked;
+              setAutoDeleteChoice(enabled);
+              void mutate({ type: 'WA_SCHEDULER_SETTINGS', autoDeleteFinished: enabled }).finally(() => setAutoDeleteChoice(null));
+            }}/>
+          <span className={styles.switchTrack} aria-hidden="true"/>
+        </label>
+        {schedules.length ? <ul className={styles.list}>{schedules.map(schedule => <li className={styles.card} key={schedule.id}>
         <div className={styles.cardTitle}><strong>{schedule.timing.kind === 'once' ? 'Envio único' : `A cada ${schedule.timing.minutes} min`}</strong>
           <span className={styles.badge}>{schedule.state === 'active' ? 'Ativo' : schedule.state === 'paused' ? 'Pausado' : 'Finalizado'}</span></div>
         <p className={styles.message}>{schedule.message}</p>
@@ -219,7 +232,8 @@ export default function Panel({ recipient, identifying, refreshRecipient, onClos
           <button type="button" className={styles.deleteAction} disabled={pending} onClick={() => setDeleteId(schedule.id)}>Excluir</button>
         </div>
         {deleteId === schedule.id && <div className={styles.confirm}><span>Excluir este agendamento?</span><button type="button" className={styles.deleteAction} disabled={pending} onClick={async () => { await mutate({ type: 'WA_SCHEDULER_DELETE', id: schedule.id }); setDeleteId(undefined); }}>Excluir</button><button type="button" onClick={() => setDeleteId(undefined)}>Cancelar</button></div>}
-      </li>)}</ul> : <div className={styles.empty}><ClockIcon size={36}/><p>Nenhum agendamento nesta conversa.</p><button type="button" className={styles.linkButton} onClick={() => setTab('form')}>Criar agendamento</button></div>)}
+      </li>)}</ul> : <div className={styles.empty}><ClockIcon size={36}/><p>Nenhum agendamento nesta conversa.</p><button type="button" className={styles.linkButton} onClick={() => setTab('form')}>Criar agendamento</button></div>}
+      </>}
       {tab === 'history' && (history.length ? <ul className={styles.list}>{history.map(item => <li className={`${styles.card} ${item.result.status === 'sent' ? styles.historySent : styles.historyNotSent}`} key={item.id}>
         <div className={styles.cardTitle}><strong>{statusLabels[item.result.status]}</strong><small>{formatDateTime(item.scheduledAt)}</small></div>
         <p className={styles.help}>{item.result.reason}</p>

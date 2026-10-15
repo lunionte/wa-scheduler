@@ -7,6 +7,7 @@ export const requestSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('WA_SCHEDULER_SAVE'), input: scheduleInputSchema, id: z.string().uuid().optional() }),
   z.object({ type: z.literal('WA_SCHEDULER_PAUSE'), id: z.string().uuid(), paused: z.boolean() }),
   z.object({ type: z.literal('WA_SCHEDULER_DELETE'), id: z.string().uuid() }),
+  z.object({ type: z.literal('WA_SCHEDULER_SETTINGS'), autoDeleteFinished: z.boolean() }),
 ]);
 export type Request = z.infer<typeof requestSchema>;
 export type Response = { ok: true; database: Database } | { ok: false; error: string };

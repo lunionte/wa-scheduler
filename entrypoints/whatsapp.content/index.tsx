@@ -49,6 +49,7 @@ export default defineContentScript({
       const [identifying, setIdentifying] = useState(false);
       const [generation, setGeneration] = useState(0);
       const [position, setPosition] = useState(placement);
+      const confirmedRecipient = useRef<string | null>(null);
       const popover = useRef<HTMLDivElement>(null);
       const moved = useRef(false);
       const drag = useRef<{ id: number; x: number; y: number } | null>(null);
@@ -83,11 +84,20 @@ export default defineContentScript({
       const refresh = useCallback(() => {
         const token = ++identifyGeneration;
         setIdentifying(true);
-        void adapter.resolveRecipient(true).then(value => { if (token === identifyGeneration) setRecipient(value); })
+        void adapter.resolveRecipient(true).then(value => {
+          if (token !== identifyGeneration) return;
+          const key = value ? recipientKey(value) : null;
+          if (key && confirmedRecipient.current && key !== confirmedRecipient.current) {
+            events.dispatchEvent(new Event('chat'));
+          } else {
+            if (key) confirmedRecipient.current = key;
+            setRecipient(value);
+          }
+        })
           .catch(() => { if (token === identifyGeneration) setRecipient(null); })
           .finally(() => { if (token === identifyGeneration) setIdentifying(false); });
       }, []);
-      const close = () => { setOpen(false); resetPosition(); openRequested = false; trigger.focus({ preventScroll: true }); };
+      const close = () => { ++identifyGeneration; confirmedRecipient.current = null; setRecipient(null); setOpen(false); resetPosition(); openRequested = false; trigger.focus({ preventScroll: true }); };
       useEffect(() => { trigger.setAttribute('aria-expanded', String(open)); if (open) refresh(); }, [open, refresh]);
       useEffect(() => {
         if (!open || !popover.current) return;
@@ -107,18 +117,22 @@ export default defineContentScript({
           const token = identifyGeneration;
           void adapter.resolveRecipient().then(value => {
             if (stopped || token !== identifyGeneration) return;
-            if (recipient && (!value || recipientKey(value) !== recipientKey(recipient))) {
+            const key = value ? recipientKey(value) : null;
+            if (key && confirmedRecipient.current && key !== confirmedRecipient.current) {
               events.dispatchEvent(new Event('chat'));
-            } else if (!recipient && value) setRecipient(value);
+            } else {
+              if (key) confirmedRecipient.current = key;
+              setRecipient(old => old?.chatId === value?.chatId && old?.phone === value?.phone && old?.label === value?.label ? old : value);
+            }
           }).catch(() => {});
         }, 1000);
         return () => { stopped = true; clearInterval(timer); };
       }, [open, recipient]);
       useEffect(() => {
         openRequested = false;
-        const show = () => { openRequested = false; resetPosition(); setOpen(true); };
-        const toggle = () => { resetPosition(); setOpen(value => !value); };
-        const changed = () => { ++identifyGeneration; resetPosition(); setRecipient(null); setIdentifying(false); setGeneration(v => v + 1); setOpen(false); };
+        const show = () => { openRequested = false; confirmedRecipient.current = null; resetPosition(); setOpen(true); refresh(); };
+        const toggle = () => { ++identifyGeneration; confirmedRecipient.current = null; setRecipient(null); resetPosition(); setOpen(value => !value); };
+        const changed = () => { ++identifyGeneration; confirmedRecipient.current = null; resetPosition(); setRecipient(null); setIdentifying(false); setGeneration(v => v + 1); setOpen(false); };
         const layout = () => {
           if (!moved.current) setPosition(placement());
           else {
@@ -127,12 +141,14 @@ export default defineContentScript({
           }
         };
         events.addEventListener('open', show); events.addEventListener('toggle', toggle);
+        events.addEventListener('verify-chat', refresh);
         events.addEventListener('chat', changed); events.addEventListener('layout', layout);
         return () => {
           events.removeEventListener('open', show); events.removeEventListener('toggle', toggle);
+          events.removeEventListener('verify-chat', refresh);
           events.removeEventListener('chat', changed); events.removeEventListener('layout', layout);
         };
-      }, []);
+      }, [refresh]);
       return open && <div ref={popover} className="scheduler-popover" style={{
         left: position.left, bottom: position.bottom, top: position.top,
         '--wa-panel-max-height': `${position.height}px`,
@@ -175,11 +191,14 @@ export default defineContentScript({
     function update() {
       const header = adapter.header(), signature = adapter.signature();
       if (header !== previousHeader || signature !== previousSignature) {
-        previousHeader = header; previousSignature = signature; events.dispatchEvent(new Event('chat'));
+        previousHeader = header; previousSignature = signature; events.dispatchEvent(new Event('verify-chat'));
       }
       const action = adapter.actionAnchor(), editor = adapter.editor();
-      if (!action || !editor) { trigger.remove(); events.dispatchEvent(new Event('chat')); return; }
+      if (!action || !editor) { trigger.remove(); return; }
       if (!mounted) { ui.mount(); mounted = true; }
+      // WhatsApp can remove injected siblings during a render. Reattach the
+      // existing host and React tree; mounting a second root would lose state.
+      else if (!ui.shadowHost.isConnected) document.body.append(ui.shadowHost);
       placeTrigger(action, editor);
       ui.uiContainer.style.fontFamily = getComputedStyle(editor).fontFamily || 'Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif';
       trigger.style.color = getComputedStyle(action).color;

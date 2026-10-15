@@ -91,14 +91,14 @@ export class WhatsAppAdapter {
     );
   }
 
-  async resolveRecipient(_force = false): Promise<Recipient | null> {
-    if (this.identifying) return this.identifying;
+  async resolveRecipient(force = false): Promise<Recipient | null> {
+    if (this.identifying && !force) return this.identifying;
     const job = chrome.runtime.sendMessage({ type: 'WA_SCHEDULER_ACTIVE' }).then(raw => {
       const parsed = probeResponseSchema.safeParse(raw);
       return parsed.success ? parsed.data.recipient : null;
     });
     this.identifying = job;
-    try { return await job; } finally { this.identifying = null; }
+    try { return await job; } finally { if (this.identifying === job) this.identifying = null; }
   }
 
   unsupportedDraft(): boolean {

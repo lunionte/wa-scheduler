@@ -101,6 +101,7 @@ export default defineBackground(() => {
         case 'WA_SCHEDULER_SAVE': return engine.save(message.input, message.id);
         case 'WA_SCHEDULER_PAUSE': return engine.pause(message.id, message.paused);
         case 'WA_SCHEDULER_DELETE': return engine.remove(message.id);
+        case 'WA_SCHEDULER_SETTINGS': return engine.setAutoDeleteFinished(message.autoDeleteFinished);
         default: return engine.snapshot();
       }
     })().then(database => respond({ ok: true, database }), error => respond({
