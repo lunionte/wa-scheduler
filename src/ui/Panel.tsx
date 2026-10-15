@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { Database, Recipient, Schedule } from '../core/model';
 import { emptyDatabase, recipientKey, recipientSchema } from '../core/model';
 import type { Request, Response } from '../core/protocol';
+import { parseResponse } from '../core/protocol';
 import { formatDateTime, parseLocalDateTime, randomMinute } from '../core/time';
 import styles from './Panel.module.css';
 
@@ -62,7 +63,7 @@ export default function Panel({ recipient, identifying, refreshRecipient, onClos
     let alive = true;
     const load = async () => {
       try {
-        const response = await request({ type: 'WA_SCHEDULER_SNAPSHOT' });
+        const response = parseResponse(await request({ type: 'WA_SCHEDULER_SNAPSHOT' }));
         if (!alive) return;
         if (response.ok) { setDatabase(response.database); setDatabaseLoaded(true); } else setError(response.error);
         const stored = await chrome.storage.local.get(null);
@@ -101,7 +102,7 @@ export default function Panel({ recipient, identifying, refreshRecipient, onClos
   async function mutate(command: Request): Promise<Database | null> {
     setPending(true); setError(''); setNotice('');
     try {
-      const response = await request(command);
+      const response = parseResponse(await request(command));
       if (!response.ok) throw new Error(response.error);
       setDatabase(response.database);
       return response.database;

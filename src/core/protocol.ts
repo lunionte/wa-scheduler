@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { recipientSchema, scheduleInputSchema } from './model';
-import type { Database, Recipient, SendResult } from './model';
+import { databaseSchema, recipientSchema, scheduleInputSchema } from './model';
+import type { Recipient, SendResult } from './model';
 
 export const requestSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('WA_SCHEDULER_SNAPSHOT') }),
@@ -10,7 +10,17 @@ export const requestSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('WA_SCHEDULER_SETTINGS'), autoDeleteFinished: z.boolean() }),
 ]);
 export type Request = z.infer<typeof requestSchema>;
-export type Response = { ok: true; database: Database } | { ok: false; error: string };
+export const responseSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), database: databaseSchema }),
+  z.object({ ok: z.literal(false), error: z.string() }),
+]);
+export type Response = z.infer<typeof responseSchema>;
+
+export function parseResponse(raw: unknown): Response {
+  const parsed = responseSchema.safeParse(raw);
+  if (!parsed.success) throw new Error('Dados recebidos incompatíveis. Recarregue a extensão e o WhatsApp Web.');
+  return parsed.data;
+}
 export type ProbeResponse = { ready: boolean; recipient: Recipient | null };
 export const probeResponseSchema = z.object({ ready: z.boolean(), recipient: recipientSchema.nullable() });
 export const sendCommandSchema = z.object({
